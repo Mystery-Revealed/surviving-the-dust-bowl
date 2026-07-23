@@ -123,7 +123,21 @@ export function createStepGame({
     soloRival,
     totalActions: TOTAL,
     chapterCount: CHAPTER_COUNT,
-    meta,
+    meta: {
+      ...meta,
+      // Chapter labels per variant key + the steps-per-chapter rule, so the
+      // client can derive "which chapter this feedback belongs to" from the
+      // resolution's own stepIndex (race-proof) instead of eventCard/turn,
+      // which the server pushes ahead to the NEXT chapter in the same batch as
+      // a chapter-ending resolution (see MatchView). Keyed by the FULL variant
+      // key (e.g. "tenant_go"), not the base side, because chapters 4-6 differ
+      // between the stay/go branches; chapters 1-3 are identical either way
+      // since phasesFor() spreads the same SHARED array into both branch lists.
+      stepsPerChapter: 2,
+      chapters: Object.fromEntries(
+        VARIANTS.map((k) => [k, phasesOfKey(k).map((p) => ({ title: p.title, date: p.date }))])
+      ),
+    },
 
     // Solo: create only the chosen base side. Versus (unused by these games):
     // create every base side. One human side, no AI rival unless soloRival.

@@ -20,9 +20,33 @@ export default function MatchView({ state, dispatch }) {
   const meta = begin.meta;
   const side = begin.side;
 
-  const phase = eventCard?.chapter || turn?.chapter;
-  const lowMeter = Object.entries(match.meters || {}).find(([, v]) => v <= 15);
   const currentPath = feedback?.branchTo || path;
+
+  // The server pushes the NEXT chapter's chapter:event AND its first turn:begin
+  // synchronously with the CURRENT chapter's LAST turn:resolution — it doesn't
+  // wait for the student to dismiss anything. So while a chapter-ending verdict
+  // is on screen, eventCard AND turn have BOTH already raced ahead, and
+  // preferring either would make the chip read one chapter ahead. Only
+  // feedback.stepIndex is baked into the feedback payload itself and can't
+  // race — derive the chapter from it (2 steps per chapter, the same rule the
+  // server's chapterOf uses). Once feedback is dismissed, eventCard/turn are
+  // exactly what's on screen next, so THEIR chapter is what should show.
+  // meta.chapters is keyed by the full variant key (e.g. "tenant_go"), not the
+  // base family, because chapters 4-6 differ by branch; chapters 1-3 are
+  // identical either way (phasesFor spreads the same SHARED array into both),
+  // so defaulting to "_stay" before the branch is decided is safe.
+  const variantKey = `${side}_${currentPath || 'stay'}`;
+  const chapters = meta.chapters?.[variantKey] || [];
+  const stepsPerChapter = meta.stepsPerChapter || 2;
+  const chapterIndexFor = (stepIndex) => Math.floor(stepIndex / stepsPerChapter);
+  const liveChapterIndex = feedback ? chapterIndexFor(feedback.stepIndex)
+    : turn?.yourTurn ? chapterIndexFor(turn.stepIndex)
+    : eventCard ? eventCard.chapter.index
+    : null;
+  const phase = liveChapterIndex != null && chapters[liveChapterIndex]
+    ? { index: liveChapterIndex, count: chapters.length, ...chapters[liveChapterIndex] }
+    : (eventCard?.chapter || turn?.chapter); // fallback if meta.chapters is ever absent
+  const lowMeter = Object.entries(match.meters || {}).find(([, v]) => v <= 15);
 
   return (
     <div className="match">
